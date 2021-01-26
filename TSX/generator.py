@@ -507,7 +507,8 @@ def test_feature_generator(model, test_loader, feature_to_predict):
     return test_loss
 
 
-def train_joint_feature_generator(generator_model, train_loader, valid_loader, generator_type, feature_to_predict=1, n_epochs=30, **kwargs):
+def train_joint_feature_generator(generator_model, train_loader, valid_loader, generator_type, feature_to_predict=1,
+                                  n_epochs=30, ft_dim_last=False, **kwargs):
     train_loss_trend = []
     test_loss_trend = []
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -546,6 +547,8 @@ def train_joint_feature_generator(generator_model, train_loader, valid_loader, g
         for i, (signals, _) in enumerate(train_loader):
             # for t in [np.random.randint(low=24, high=45)]:
             #for t in [int(tt) for tt in np.logspace(1.2, np.log10(signals.shape[2]-1), num=num)]:
+            if ft_dim_last:
+                signals = signals.permute(0, 2, 1)
 
             if num == 1:
                 timepoints=[signals.shape[2]-1]
@@ -554,10 +557,10 @@ def train_joint_feature_generator(generator_model, train_loader, valid_loader, g
 
             for t in timepoints:
                 optimizer.zero_grad()
-                mean, covariance = generator_model.likelihood_distribution(signals[:, :, :t])
+                mean, covariance = generator_model.likelihood_distribution(signals[:, :, :t].float())
                 # dist = OMTMultivariateNormal(mean, torch.cholesky(covariance))
                 dist = MultivariateNormal(loc=mean, covariance_matrix=covariance)
-                reconstruction_loss = -dist.log_prob(signals[:, :, t].to(device)).mean()
+                reconstruction_loss = -dist.log_prob(signals[:, :, t].float().to(device)).mean()
                 epoch_loss = epoch_loss + reconstruction_loss.item()
                 reconstruction_loss.backward(retain_graph=True)
                 optimizer.step()
@@ -570,9 +573,9 @@ def train_joint_feature_generator(generator_model, train_loader, valid_loader, g
                 # reconstruction_loss.backward(retain_graph=True)
                 # optimizer.step()
 
-        test_loss = test_joint_feature_generator(generator_model, valid_loader)
+        test_loss = test_joint_feature_generator(generator_model, valid_loader, ft_dim_last=ft_dim_last)
         # train_loss_trend.append(epoch_loss / ((i + 1) * num))
-        train_loss = test_joint_feature_generator(generator_model, train_loader)
+        train_loss = test_joint_feature_generator(generator_model, train_loader, ft_dim_last=ft_dim_last)
         train_loss_trend.append(train_loss)
 
         test_loss_trend.append(test_loss)
@@ -613,11 +616,14 @@ def train_joint_feature_generator(generator_model, train_loader, valid_loader, g
     plt.savefig('./plots/%s/generator_loss_%s.pdf'%(data, generator_type))
 
 
-def test_joint_feature_generator(model, test_loader):
+def test_joint_feature_generator(model, test_loader, ft_dim_last=False):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     data = model.data
     model.eval()
-    _, n_features, signel_len = next(iter(test_loader))[0].shape
+    sample_input = next(iter(test_loader))[0]
+    if ft_dim_last:
+        sample_input = sample_input.permute(0, 2, 1)
+    _, n_features, signel_len = sample_input.shape
     test_loss = 0
     if data == 'mimic':
         tvec = [24]
@@ -627,11 +633,12 @@ def test_joint_feature_generator(model, test_loader):
         num = 1
         tvec = [int(tt) for tt in np.logspace(1.0,np.log10(signel_len), num=num)]
     for i, (signals, labels) in enumerate(test_loader):
+        signals = signals.permute(0, 2, 1)
         for t in tvec:
-            mean, covariance = model.likelihood_distribution(signals[:, :, :t])
+            mean, covariance = model.likelihood_distribution(signals[:, :, :t].float())
             # dist = OMTMultivariateNormal(mean, torch.cholesky(covariance))
             dist = MultivariateNormal(loc=mean, covariance_matrix=covariance)
-            reconstruction_loss = -dist.log_prob(signals[:, :, t].to(device)).mean()
+            reconstruction_loss = -dist.log_prob(signals[:, :, t].float().to(device)).mean()
             test_loss = test_loss + reconstruction_loss.item()
 
             # label = signals[:, :, t:t+model.prediction_size].contiguous().view(signals.shape[0], signals.shape[1])

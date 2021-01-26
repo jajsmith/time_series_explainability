@@ -35,16 +35,23 @@ def kl_multilabel(p1,p2,reduction='none'):
 
 
 class FITExplainer:
-    def __init__(self, model, generator=None,activation=torch.nn.Softmax(-1),n_classes=2):
+    def __init__(self, model, generator=None,activation=torch.nn.Softmax(-1),n_classes=2, ft_dim_last=False):
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.generator = generator
         self.base_model = model.to(self.device)
         self.activation = activation
-        self.n_classes=n_classes
+        self.n_classes = n_classes
+        self.ft_dim_last = ft_dim_last
+
+    def model_predict(self, x):
+        if self.ft_dim_last:
+            # Input to model needs to be flipped so that ft dimension is last
+            x = x.permute(0, 2, 1)
+        return self.base_model(x)
 
     def fit_generator(self, generator_model, train_loader, test_loader, n_epochs=300,cv=0):
         train_joint_feature_generator(generator_model, train_loader, test_loader, generator_type='joint_generator',
-                                      n_epochs=300, lr=0.001, weight_decay=0,cv=cv)
+                                      n_epochs=n_epochs, lr=0.001, weight_decay=0, cv=cv, ft_dim_last=self.ft_dim_last)
         self.generator = generator_model.to(self.device)
 
     def attribute(self, x, y, n_samples=10, retrospective=False, distance_metric='kl',subsets=None):
@@ -56,16 +63,21 @@ class FITExplainer:
         """
         self.generator.eval()
         self.generator.to(self.device)
+
+        if self.ft_dim_last:
+            # Flip so that time dim is last
+            x = x.permute(0, 2, 1)
+
         x = x.to(self.device)
         _, n_features, t_len = x.shape
         score = np.zeros(list(x.shape))
         if retrospective:
-            p_y_t = self.activation(self.base_model(x))
+            p_y_t = self.activation(self.model_predict(x))
 
         for t in range(1, t_len):
             if not retrospective:
-                p_y_t = self.activation(self.base_model(x[:, :, :t+1]))
-                p_tm1 = self.activation(self.base_model(x[:,:,0:t]))
+                p_y_t = self.activation(self.model_predict(x[:, :, :t+1]))
+                p_tm1 = self.activation(self.model_predict(x[:,:,0:t]))
 
             for i in range(n_features):
                 x_hat = x[:,:,0:t+1].clone()
@@ -73,9 +85,9 @@ class FITExplainer:
                 t1_all=[]
                 t2_all=[]
                 for _ in range(n_samples):
-                    x_hat_t, _ = self.generator.forward_conditional(x[:, :, :t], x[:, :, t], [i])
+                    x_hat_t, _ = self.generator.forward_conditional(x[:, :, :t].float(), x[:, :, t].float(), [i])
                     x_hat[:, :, t] = x_hat_t
-                    y_hat_t = self.activation(self.base_model(x_hat))
+                    y_hat_t = self.activation(self.model_predict(x_hat))
                     if distance_metric == 'kl':
                         if type(self.activation).__name__==type(torch.nn.Softmax(-1)).__name__:
                             div = torch.sum(torch.nn.KLDivLoss(reduction='none')(torch.log(p_tm1), p_y_t), -1) - \
@@ -106,7 +118,7 @@ class FITExplainer:
                     score[:, i, t] = 1-E_div
                 else:
                     score[:, i, t] = E_div
-        return score
+        return np.swapaxes(score, 1, 2) if self.ft_dim_last else score
 
 
 class FFCExplainer:
