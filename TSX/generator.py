@@ -553,7 +553,8 @@ def train_joint_feature_generator(generator_model, train_loader, valid_loader, g
             if num == 1:
                 timepoints=[signals.shape[2]-1]
             else:
-                timepoints = [int(tt) for tt in np.logspace(1.0, np.log10(signals.shape[2]-1), num=num)]
+                # TODO: This used to start at 1.0, but that didn't make sense to me... investigate if changing to 0 was correct
+                timepoints = [int(tt) for tt in np.logspace(0.0, np.log10(signals.shape[2]-1), num=num)]
 
             for t in timepoints:
                 optimizer.zero_grad()
@@ -631,7 +632,8 @@ def test_joint_feature_generator(model, test_loader, ft_dim_last=False):
         tvec = [5]
     else:
         num = 1
-        tvec = [int(tt) for tt in np.logspace(1.0,np.log10(signel_len), num=num)]
+        # TODO: This used to start at 1.0, but that didn't make sense to me... investigate if changing to 0 was correct
+        tvec = [int(tt) for tt in np.logspace(0.0,np.log10(signel_len), num=num)]
     for i, (signals, labels) in enumerate(test_loader):
         signals = signals.permute(0, 2, 1)
         for t in tvec:
