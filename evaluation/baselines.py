@@ -11,14 +11,14 @@ rc('font', weight='bold')
 from matplotlib import rc, rcParams
 rc('font', weight='bold')
 
-from TSX.utils import load_simulated_data, train_model_rt, compute_median_rank, train_model_rt_binary, \
+from ..TSX.utils import load_simulated_data, train_model_rt, compute_median_rank, train_model_rt_binary, \
     train_model_multiclass, train_model, load_data
-from TSX.models import StateClassifier, RETAIN, EncoderRNN, ConvClassifier, StateClassifierMIMIC
+from ..TSX.models import StateClassifier, RETAIN, EncoderRNN, ConvClassifier, StateClassifierMIMIC
 
-from TSX.generator import JointFeatureGenerator, JointDistributionGenerator
-from TSX.explainers import RETAINexplainer, FITExplainer, IGExplainer, FFCExplainer, \
+from ..TSX.generator import JointFeatureGenerator, JointDistributionGenerator
+from ..TSX.explainers import RETAINexplainer, FITExplainer, IGExplainer, FFCExplainer, \
     DeepLiftExplainer, GradientShapExplainer, AFOExplainer, FOExplainer, SHAPExplainer, \
-    LIMExplainer, CarryForwardExplainer, MeanImpExplainer
+    LIMExplainer, CarryForwardExplainer, MeanImpExplainer, TSRExplainer
 from sklearn import metrics
 
 
@@ -263,6 +263,10 @@ if __name__ == '__main__':
 
         elif args.explainer == 'retain':
              explainer = RETAINexplainer(model,self.data)
+
+        elif args.explainer == 'grad_tsr':
+            explainer = TSRExplainer(model, "Grad")
+
         else:
             raise ValueError('%s explainer not defined!' % args.explainer)
 

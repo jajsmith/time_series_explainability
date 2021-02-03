@@ -4,7 +4,6 @@ import torch
 import torch.utils.data as utils
 from torch.utils.data import DataLoader
 from sklearn.metrics import precision_score, roc_auc_score
-from TSX.models import PatientData, NormalPatientData, GHGData
 import matplotlib.pyplot as plt
 import matplotlib
 import pickle as pkl
@@ -12,6 +11,8 @@ from sklearn.model_selection import KFold, StratifiedShuffleSplit
 from sklearn.metrics import classification_report
 import seaborn as sns
 #np.set_printoptions(threshold=sys.maxsize)
+
+from .models import PatientData, NormalPatientData, GHGData
 
 #sns.set()
 

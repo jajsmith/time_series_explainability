@@ -5,12 +5,13 @@ import sys
 import re
 
 # from TSX.generator import JointFeatureGenerator, train_joint_feature_generator, JointDistributionGenerator
-from TSX.utils import load_simulated_data, AverageMeter
+from .utils import load_simulated_data, AverageMeter
+from TSR.Scripts.tsr import get_tsr_saliency
 
 from sklearn.metrics import roc_auc_score, average_precision_score
 from tqdm import tnrange, tqdm_notebook
 import matplotlib.pyplot as plt
-from TSX.generator import train_joint_feature_generator, JointDistributionGenerator
+from .generator import train_joint_feature_generator, JointDistributionGenerator
 from captum.attr import IntegratedGradients, DeepLift, GradientShap, Saliency
 import lime
 import lime.lime_tabular
@@ -715,6 +716,23 @@ class LIMExplainer:
 
             print('sample:', sample_ind, ' done')
         return score
+
+
+class TSRExplainer:
+    def __init__(self, model, saliency_method):
+        self.model = model
+
+        self.saliency_method = saliency_method
+        if saliency_method == "Grad":
+            self.saliency = Saliency(model)
+        else:
+            raise Exception(f"Saliency method {saliency_method} is unrecognized")
+
+        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+    def attribute(self, x, y):
+        baseline = None
+        return get_tsr_saliency(self.saliency, x, y, baseline=baseline, ft_dim_last=False)
 
 
 class FITSubGroupExplainer:

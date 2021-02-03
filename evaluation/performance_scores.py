@@ -40,7 +40,7 @@ def main(args):
         data_path = './data/simulated_spike_data'
         data_type = 'spike'
 
-    score_path = '/scratch/gobi1/shalmali/TSX_results/new_results/%s' %(args.data)
+    score_path = 'output/'
     if data_type == 'state':
         with open(os.path.join(data_path, 'state_dataset_importance_test.pkl'), 'rb') as f:
             gt_importance_test = pkl.load(f)
