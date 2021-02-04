@@ -725,6 +725,8 @@ class TSRExplainer:
         self.saliency_method = saliency_method
         if saliency_method == "Grad":
             self.saliency = Saliency(model)
+        elif saliency_method == "IG":
+            self.saliency = IntegratedGradients(model)
         else:
             raise Exception(f"Saliency method {saliency_method} is unrecognized")
 
@@ -732,7 +734,22 @@ class TSRExplainer:
 
     def attribute(self, x, y):
         baseline = None
+        if self.saliency_method == "IG":
+            baseline = torch.from_numpy(np.random.random(x.shape)).float().to(self.device)
         return get_tsr_saliency(self.saliency, x, y, baseline=baseline, ft_dim_last=False)
+
+
+class GradExplainer:
+    def __init__(self, model):
+        self.saliency = Saliency(model)
+
+    def attribute(self, x, y):
+        return self.saliency.attribute(x, target=y).data.cpu().numpy()
+
+
+class MockExplainer:
+    def attribute(self, x, y):
+        return np.zeros(x.shape)
 
 
 class FITSubGroupExplainer:

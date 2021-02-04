@@ -635,7 +635,8 @@ def test_joint_feature_generator(model, test_loader, ft_dim_last=False):
         # TODO: This used to start at 1.0, but that didn't make sense to me... investigate if changing to 0 was correct
         tvec = [int(tt) for tt in np.logspace(0.0,np.log10(signel_len), num=num)]
     for i, (signals, labels) in enumerate(test_loader):
-        signals = signals.permute(0, 2, 1)
+        if ft_dim_last:
+            signals = signals.permute(0, 2, 1)
         for t in tvec:
             mean, covariance = model.likelihood_distribution(signals[:, :, :t].float())
             # dist = OMTMultivariateNormal(mean, torch.cholesky(covariance))

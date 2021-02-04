@@ -18,9 +18,9 @@ from ..TSX.models import StateClassifier, RETAIN, EncoderRNN, ConvClassifier, St
 from ..TSX.generator import JointFeatureGenerator, JointDistributionGenerator
 from ..TSX.explainers import RETAINexplainer, FITExplainer, IGExplainer, FFCExplainer, \
     DeepLiftExplainer, GradientShapExplainer, AFOExplainer, FOExplainer, SHAPExplainer, \
-    LIMExplainer, CarryForwardExplainer, MeanImpExplainer, TSRExplainer
+    LIMExplainer, CarryForwardExplainer, MeanImpExplainer, TSRExplainer, GradExplainer, MockExplainer
 from sklearn import metrics
-
+from TSR.Scripts.Plotting.plot import plotExampleBox
 
 intervention_list = ['vent', 'vaso', 'adenosine', 'dobutamine', 'dopamine', 'epinephrine', 'isuprel', 'milrinone',
                      'norepinephrine', 'phenylephrine', 'vasopressin', 'colloid_bolus', 'crystalloid_bolus', 'nivdurations']
@@ -39,6 +39,7 @@ ks = {'simulation_spike': 1, 'simulation': 3, 'simulation_l2x': 4}
 
 if __name__ == '__main__':
     np.random.seed(1234)
+    torch.manual_seed(1234)
     parser = argparse.ArgumentParser(description='Run baseline model for explanation')
     parser.add_argument('--explainer', type=str, default='fit', help='Explainer model')
     parser.add_argument('--data', type=str, default='simulation')
@@ -264,8 +265,16 @@ if __name__ == '__main__':
         elif args.explainer == 'retain':
              explainer = RETAINexplainer(model,self.data)
 
+        elif args.explainer == 'grad':
+            explainer = GradExplainer(model)
+
         elif args.explainer == 'grad_tsr':
             explainer = TSRExplainer(model, "Grad")
+        elif args.explainer == 'ig_tsr':
+            explainer = TSRExplainer(model, "IG")
+
+        elif args.explainer == 'mock':
+            explainer = MockExplainer()
 
         else:
             raise ValueError('%s explainer not defined!' % args.explainer)
@@ -312,6 +321,11 @@ if __name__ == '__main__':
     if 'simulation' in args.data:
         gt_soft_score = np.zeros(gt_importance_test.shape)
         gt_importance_test.astype(int)
+
+        for i in range(10):
+            plotExampleBox(importance_scores[i], f'plots/{args.explainer}_attributions_{i}', greyScale=True)
+            plotExampleBox(gt_importance_test[i], f'plots/ground_truth_attributions_{i}', greyScale=True)
+
         gt_score = gt_importance_test.flatten()
         explainer_score = importance_scores.flatten()
         if args.explainer=='deep_lift' or args.explainer=='integrated_gradient' or args.explainer=='gradient_shap':
