@@ -330,6 +330,8 @@ if __name__ == '__main__':
         explainer_score = importance_scores.flatten()
         if args.explainer=='deep_lift' or args.explainer=='integrated_gradient' or args.explainer=='gradient_shap':
             explainer_score = np.abs(explainer_score)
+        # TODO: Why do we get NaNs?
+        explainer_score = np.nan_to_num(explainer_score)
         auc_score = metrics.roc_auc_score(gt_score, explainer_score)
         aupr_score = metrics.average_precision_score(gt_score, explainer_score)
 
