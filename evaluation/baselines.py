@@ -269,7 +269,14 @@ if __name__ == '__main__':
             explainer = GradExplainer(model)
 
         elif args.explainer == 'grad_tsr':
-            explainer = TSRExplainer(model, "Grad")
+            generator = JointFeatureGenerator(feature_size, hidden_size=feature_size * 3, data=args.data)
+            if args.train:
+                fit = FITExplainer(model)
+                fit.fit_generator(generator, train_loader, valid_loader, cv=args.cv)
+                generator = fit.generator
+            else:
+                generator.load_state_dict(torch.load(os.path.join('./ckpt/%s/%s_%d.pt' % (args.data, 'joint_generator', args.cv))))
+            explainer = TSRExplainer(model, "Grad", generator)
         elif args.explainer == 'ig_tsr':
             explainer = TSRExplainer(model, "IG")
 

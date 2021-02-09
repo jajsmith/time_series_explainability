@@ -719,7 +719,7 @@ class LIMExplainer:
 
 
 class TSRExplainer:
-    def __init__(self, model, saliency_method):
+    def __init__(self, model, saliency_method, generator=None):
         self.model = model
 
         self.saliency_method = saliency_method
@@ -730,13 +730,15 @@ class TSRExplainer:
         else:
             raise Exception(f"Saliency method {saliency_method} is unrecognized")
 
+        self.generator = generator
+
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     def attribute(self, x, y):
         baseline = None
         if self.saliency_method == "IG":
             baseline = torch.from_numpy(np.random.random(x.shape)).float().to(self.device)
-        return get_tsr_saliency(self.saliency, x, y, baseline=baseline, ft_dim_last=False)
+        return get_tsr_saliency(self.saliency, x, y, baseline=baseline, ft_dim_last=False, generator=self.generator)
 
 
 class GradExplainer:
