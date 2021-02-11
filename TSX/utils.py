@@ -370,11 +370,13 @@ def train_model_rt(model, train_loader, valid_loader, optimizer, n_epochs, devic
     # Save model and results
     if not os.path.exists(os.path.join("./ckpt/", data)):
         os.mkdir(os.path.join("./ckpt/", data))
-    torch.save(model.state_dict(), './ckpt/' + data + '/' + str(experiment) + '_'+ str(cv) + '.pt')
+    model_path = './ckpt/' + data + '/' + str(experiment) + '_'+ str(cv) + '.pt'
+    torch.save(model.state_dict(), model_path)
     plt.plot(train_loss_trend, label='Train loss')
     plt.plot(test_loss_trend, label='Validation loss')
     plt.legend()
     plt.savefig(os.path.join('./plots', data, 'train_loss.pdf'))
+    return model_path
 
 def train_model_rt_binary(model, train_loader, valid_loader, optimizer, n_epochs, device, experiment, data='simulation',num=5,cv=0):
     train_loss_trend = []
