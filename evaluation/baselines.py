@@ -15,7 +15,7 @@ from ..TSX.utils import load_simulated_data, train_model_rt, compute_median_rank
     train_model_multiclass, train_model, load_data
 from ..TSX.models import StateClassifier, RETAIN, EncoderRNN, ConvClassifier, StateClassifierMIMIC
 
-from ..TSX.generator import JointFeatureGenerator, JointDistributionGenerator
+from ..TSX.generator import JointFeatureGenerator, JointDistributionGenerator, TimeGanGenerator
 from ..TSX.explainers import RETAINexplainer, FITExplainer, IGExplainer, FFCExplainer, \
     DeepLiftExplainer, GradientShapExplainer, AFOExplainer, FOExplainer, SHAPExplainer, \
     LIMExplainer, CarryForwardExplainer, MeanImpExplainer, TSRExplainer, GradExplainer, MockExplainer
@@ -201,6 +201,10 @@ if __name__ == '__main__':
                     explainer = FITExplainer(model, generator,activation=torch.nn.Sigmoid())
                 else:
                     explainer = FITExplainer(model, generator)
+            elif args.generator_type=='timegan':
+                tgan_path = os.path.join('./ckpt/%s/%s_%d.pt' % (args.data, 'timegan',args.cv))
+                tgan = TimeGanGenerator(train_loader, tgan_path, args.train)
+                explainer = FITExplainer(model, tgan)
 
         elif args.explainer == 'integrated_gradient':
             if args.data=='mimic_int' or args.data=='simulation_spike':

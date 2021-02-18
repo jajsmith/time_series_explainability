@@ -11,6 +11,8 @@ from sklearn.mixture import GaussianMixture
 
 #from pydlm import dlm, autoReg
 
+from timegan.tgan import tgan, get_next_timestep
+
 feature_map_mimic = ['ANION GAP', 'ALBUMIN', 'BICARBONATE', 'BILIRUBIN', 'CREATININE', 'CHLORIDE', 'GLUCOSE', 'HEMATOCRIT', 'HEMOGLOBIN',
            'LACTATE', 'MAGNESIUM', 'PHOSPHATE', 'PLATELET', 'POTASSIUM', 'PTT', 'INR', 'PT', 'SODIUM', 'BUN', 'WBC', 'HeartRate' ,
            'SysBP' , 'DiasBP' , 'MeanBP' , 'RespRate' , 'SpO2' , 'Glucose','Temp']
@@ -263,7 +265,55 @@ class JointFeatureGenerator(torch.nn.Module):
         full_sample = current.clone()
         full_sample[:,sig_inds_comp] = sample
         return full_sample, mean[:,sig_inds_comp]
-    
+
+
+class TimeGanGenerator():
+    def __init__(self, train_loader, save_path, train):
+        self.tgan_path = save_path
+        X = []
+        for sample, _ in train_loader:
+            X.append(sample)
+        X = np.concatenate(X)
+        # TGAN wants feature dim last
+        X = np.swapaxes(X, 1, 2)
+        self.dataset = X
+
+        # Copied from tgan code
+        parameters = dict()
+        parameters['hidden_dim'] = len(X[0][0, :]) * 4
+        parameters['num_layers'] = 3
+        parameters['iterations'] = 1000
+        parameters['batch_size'] = 128
+        parameters['module_name'] = 'gru'  # Other options: 'lstm' or 'lstmLN'
+        parameters['z_dim'] = len(X[0][0, :])
+        self.parameters = parameters
+
+        if train:
+            tgan(self.dataset, self.parameters, self.tgan_path)
+
+        self.parameters = parameters
+
+    def eval(self):
+        pass
+
+    def to(self, device):
+        pass
+
+    def forward_conditional(self, past, current, sig_inds):
+        current_idx = past.shape[2]
+        sig_inds_comp = list(set(range(past.shape[-2])) - set(sig_inds))
+
+        # TGAN wants feature dim last
+        past = np.swapaxes(past, 1, 2)
+        gen_x = get_next_timestep(past, self.parameters['z_dim'], self.tgan_path)
+        gen_x = np.swapaxes(gen_x, 1, 2)
+        gen_current = gen_x[:, :, current_idx]
+
+        out = current.clone()
+        out[:, sig_inds_comp] = torch.from_numpy(gen_current).float()[:, sig_inds_comp]
+
+        return out, None
+
 
 class JointDistributionGenerator(torch.nn.Module):
     def __init__(self, n_components, train_loader, seed=random.seed('2019')):
