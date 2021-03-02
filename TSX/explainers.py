@@ -7,6 +7,7 @@ import re
 # from TSX.generator import JointFeatureGenerator, train_joint_feature_generator, JointDistributionGenerator
 from .utils import load_simulated_data, AverageMeter
 from TSR.Scripts.tsr import get_tsr_saliency
+from inverse_fit import inverse_fit_attribute
 
 from sklearn.metrics import roc_auc_score, average_precision_score
 from tqdm import tnrange, tqdm_notebook
@@ -39,7 +40,7 @@ class FITExplainer:
     def __init__(self, model, generator=None,activation=torch.nn.Softmax(-1),n_classes=2, ft_dim_last=False):
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.generator = generator
-        self.base_model = model.to(self.device)
+        self.base_model = model.to(self.device).eval()
         self.activation = activation
         self.n_classes = n_classes
         self.ft_dim_last = ft_dim_last
@@ -745,6 +746,15 @@ class GradExplainer:
 
     def attribute(self, x, y):
         return self.saliency.attribute(x, target=y).data.cpu().numpy()
+
+
+class IFITExplainer:
+    def __init__(self, model, activation=None):
+        self.model = model
+        self.activation = activation
+
+    def attribute(self, x, y):
+        return inverse_fit_attribute(x, self.model, activation=self.activation)
 
 
 class MockExplainer:

@@ -41,7 +41,7 @@ class PatientData():
             with open(os.path.join(root,'patient_interventions.pkl'), 'rb') as f:
                 self.intervention = pickle.load(f)
 
-        self.n_train = int(self.train_ratio*len(self.intervention))
+        self.n_train = int(self.train_ratio*len(self.data))
         if shuffle:
             inds = np.arange(len(self.data))
             random.shuffle(inds)

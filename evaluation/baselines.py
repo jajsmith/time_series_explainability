@@ -18,7 +18,7 @@ from ..TSX.models import StateClassifier, RETAIN, EncoderRNN, ConvClassifier, St
 from ..TSX.generator import JointFeatureGenerator, JointDistributionGenerator
 from ..TSX.explainers import RETAINexplainer, FITExplainer, IGExplainer, FFCExplainer, \
     DeepLiftExplainer, GradientShapExplainer, AFOExplainer, FOExplainer, SHAPExplainer, \
-    LIMExplainer, CarryForwardExplainer, MeanImpExplainer, TSRExplainer, GradExplainer, MockExplainer
+    LIMExplainer, CarryForwardExplainer, MeanImpExplainer, TSRExplainer, GradExplainer, MockExplainer, IFITExplainer
 from sklearn import metrics
 from TSR.Scripts.Plotting.plot import plotExampleBox
 
@@ -272,6 +272,9 @@ if __name__ == '__main__':
             explainer = TSRExplainer(model, "Grad")
         elif args.explainer == 'ig_tsr':
             explainer = TSRExplainer(model, "IG")
+
+        elif args.explainer == 'ifit':
+            explainer = IFITExplainer(model, activation=torch.nn.Softmax(-1))
 
         elif args.explainer == 'mock':
             explainer = MockExplainer()
