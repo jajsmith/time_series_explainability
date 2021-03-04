@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns;sns.set()
 import torch
 
-from TSX.utils import load_data
+from ..TSX.utils import load_data
 
 import pickle as pkl
 import pandas as pd

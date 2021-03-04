@@ -5,6 +5,7 @@ import numpy as np
 import seaborn as sns; sns.set()
 import pickle as pkl
 import time
+import pathlib
 
 from matplotlib import rc, rcParams
 rc('font', weight='bold')
@@ -110,7 +111,7 @@ if __name__ == '__main__':
         if args.mimic_path is None:
             raise ValueError('Specify the data directory containing processed mimic data')
         p_data, train_loader, valid_loader, test_loader = load_data(batch_size=batch_size, \
-            path=args.mimic_path,task=task,cv=args.cv)
+            path=args.mimic_path,task=task,cv=args.cv ,test_bs=batch_size)
         feature_size = p_data.feature_size
         class_weight = p_data.pos_weight
     else:
@@ -312,8 +313,9 @@ if __name__ == '__main__':
         ranked_feats.append(ranked_features)
 
     importance_scores = np.concatenate(importance_scores, 0)
-    print('Saving file to ', os.path.join(output_path, '%s_test_importance_scores_%d.pkl' % (args.explainer, args.cv)))
-    with open(os.path.join(output_path, '%s_test_importance_scores_%d.pkl' % (args.explainer, args.cv)), 'wb') as f:
+    pathlib.Path(output_path + f'/{args.data}').mkdir(parents=True, exist_ok=True)
+    print('Saving file to ', os.path.join(output_path + f'/{args.data}', '%s_test_importance_scores_%d.pkl' % (args.explainer, args.cv)))
+    with open(os.path.join(output_path + f'/{args.data}', '%s_test_importance_scores_%d.pkl' % (args.explainer, args.cv)), 'wb') as f:
         pkl.dump(importance_scores, f, protocol=pkl.HIGHEST_PROTOCOL)
 
 
@@ -326,8 +328,8 @@ if __name__ == '__main__':
         gt_importance_test.astype(int)
 
         for i in range(10):
-            plotExampleBox(importance_scores[i], f'plots/{args.explainer}_attributions_{i}', greyScale=True)
-            plotExampleBox(gt_importance_test[i], f'plots/ground_truth_attributions_{i}', greyScale=True)
+            plotExampleBox(importance_scores[i], f'plots/{args.data}/{args.explainer}_attributions_{i}', greyScale=True)
+            plotExampleBox(gt_importance_test[i], f'plots/{args.data}/ground_truth_attributions_{i}', greyScale=True)
 
         gt_score = gt_importance_test.flatten()
         explainer_score = importance_scores.flatten()

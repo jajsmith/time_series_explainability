@@ -5,8 +5,8 @@ import argparse
 import matplotlib.pyplot as plt
 from sklearn import metrics
 import torch
-from TSX.models import StateClassifier, ConvClassifier, EncoderRNN, StateClassifierMIMIC, RETAIN
-from TSX.utils import load_data
+from ..TSX.models import StateClassifier, ConvClassifier, EncoderRNN, StateClassifierMIMIC, RETAIN
+from ..TSX.utils import load_data
 
 TOP_PATIENTS = [1534, 3734, 82, 3663, 3509, 870, 3305, 1484, 2604, 1672, 2733, 1057, 2599, 3319, 1239, 1671, 
 3095, 3783, 1935, 720, 1961, 3476, 262, 816, 2268, 723, 4469, 3818, 4126, 1575, 1526, 1457, 4542, 2015, 2512, 
@@ -56,11 +56,11 @@ def main(args):
         timeseries_feature_size = len(feature_map_mimic)
         n_classes = 2
         task = 'mortality'
-        data_path = '/scratch/gobi2/projects/tsx'
+        data_path = 'data'
         args.multiclass=True
 
     if args.data == 'mimic' or args.data=='mimic_int':
-        p_data, train_loader, valid_loader, test_loader = load_data(batch_size=100, path=data_path,task=task,cv=0,train_pc=1.)
+        p_data, train_loader, valid_loader, test_loader = load_data(batch_size=100, path=data_path,task=task,cv=0,train_pc=1., test_bs=100)
         feature_size = p_data.feature_size
         x_test = torch.stack(([x[0] for x in list(test_loader.dataset)])).cpu().numpy()
         y_test = torch.stack(([x[1] for x in list(test_loader.dataset)])).cpu().numpy()
@@ -160,8 +160,8 @@ def main(args):
         activation = torch.nn.Softmax(-1)
 
     auc_drop, aupr_drop = [], []
-    for cv in [0, 1, 2]:
-    #for cv in [0]:
+    # for cv in [0, 1, 2]:
+    for cv in [0]:
         with open(os.path.join(importance_path, '%s_test_importance_scores_%s.pkl' % (args.explainer, str(cv))),
                   'rb') as f:
             importance_scores = pkl.load(f)
@@ -413,8 +413,6 @@ if __name__ == '__main__':
     parser.add_argument('--multiclass', action='store_true', default=False)
     parser.add_argument('--cv', type=int, default=0)
     parser.add_argument('--n_drops', type=int, default=1)
-    parser.add_argument('--percentile', action='store_true')
-    parser.add_argument('--path', type=str, default='/scratch/gobi1/sana/TSX_results/new_results/')
     parser.add_argument('--subpop', action='store_true', default=False)
     parser.add_argument('--time_imp', action='store_true', default=False)
     parser.add_argument('--train_pc', type=float, default=1.)
