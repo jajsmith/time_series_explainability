@@ -22,6 +22,7 @@ from ..TSX.explainers import RETAINexplainer, FITExplainer, IGExplainer, FFCExpl
     LIMExplainer, CarryForwardExplainer, MeanImpExplainer, TSRExplainer, GradExplainer, MockExplainer, IFITExplainer
 from sklearn import metrics
 from TSR.Scripts.Plotting.plot import plotExampleBox
+from xgboost_model import XGBPytorchStub
 
 intervention_list = ['vent', 'vaso', 'adenosine', 'dobutamine', 'dopamine', 'epinephrine', 'isuprel', 'milrinone',
                      'norepinephrine', 'phenylephrine', 'vasopressin', 'colloid_bolus', 'crystalloid_bolus', 'nivdurations']
@@ -50,11 +51,18 @@ if __name__ == '__main__':
     parser.add_argument('--out_path', type=str, default='./output/')
     parser.add_argument('--mimic_path', type=str)
     parser.add_argument('--binary', action='store_true', default=False)
+    parser.add_argument('--xgb', action='store_true', default=False)
     parser.add_argument('--gt', type=str, default='true_model', help='specify ground truth score')
     parser.add_argument('--cv', type=int, default=0, help='cross validation')
     args = parser.parse_args()
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     batch_size = 100
+
+    # XGB Params
+    xgb_window_size = 10
+    xgb_buffer_size = 0
+    xgb_target_size = 1
+
     if not os.path.exists('./plots'):
         os.mkdir('./plots')
     if not os.path.exists('./ckpt'):
@@ -140,59 +148,71 @@ if __name__ == '__main__':
         else:
             model.load_state_dict(torch.load(os.path.join('./ckpt/%s/%s_%d.pt' % (args.data, 'retain', args.cv))))
     else:
-        if not args.binary:
-            if args.data=='mimic_int':
-                model = StateClassifierMIMIC(feature_size=feature_size, n_state=n_classes, hidden_size=128,rnn='LSTM')
-            else:
-                model = StateClassifier(feature_size=feature_size, n_state=n_classes, hidden_size=200,rnn='GRU')
+        if args.xgb:
+            model = XGBPytorchStub(train_loader, valid_loader, xgb_window_size, xgb_buffer_size, xgb_target_size)
         else:
-            model = EncoderRNN(feature_size=feature_size, hidden_size=50, regres=True, return_all=False, data=args.data, rnn="GRU")
-        if args.train:
             if not args.binary:
-                optimizer = torch.optim.Adam(model.parameters(), lr=0.0001, weight_decay=1e-3)
-                if args.data=='mimic':
-                    train_model(model, train_loader, valid_loader, optimizer=optimizer, n_epochs=100,
-                                device=device, experiment='model',cv=args.cv)
-                elif 'simulation' in args.data:
-                    train_model_rt(model=model, train_loader=train_loader, valid_loader=valid_loader, optimizer=optimizer, n_epochs=50,
-                               device=device, experiment='model', data=args.data,cv=args.cv)
-                elif args.data=='mimic_int':
-                    optimizer = torch.optim.Adam(model.parameters(), lr=0.0001, weight_decay=0.0001)
-                    if type(activation).__name__==type(torch.nn.Softmax(-1)).__name__: #suresh et al
-                        train_model_multiclass(model=model, train_loader=train_loader, valid_loader=test_loader, 
-                        optimizer=optimizer, n_epochs=50, device=device, experiment='model', data=args.data,num=5, 
-                        loss_criterion=torch.nn.CrossEntropyLoss(weight=torch.FloatTensor(class_weight).to(device)),cv=args.cv)
-                    else:
-                        train_model_multiclass(model=model, train_loader=train_loader, valid_loader=test_loader,
-                        optimizer=optimizer, n_epochs=25, device=device, experiment='model', data=args.data,num=5,
-                        #loss_criterion=torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor(class_weight).cuda()),cv=args.cv)
-                        loss_criterion=torch.nn.BCEWithLogitsLoss(),cv=args.cv)
-                        #loss_criterion=torch.nn.CrossEntropyLoss(weight=torch.FloatTensor(class_weight).cuda()),cv=args.cv)
-                        #loss_criterion=torch.nn.CrossEntropyLoss(),cv=args.cv)
-            else:
-                #this learning rate works much better for spike data
-                optimizer = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-4)
-                if args.data=='mimic':
-                    train_model(model, train_loader, valid_loader, optimizer=optimizer, n_epochs=200,
-                                device=device, experiment='model',cv=args.cv)
+                if args.data=='mimic_int':
+                    model = StateClassifierMIMIC(feature_size=feature_size, n_state=n_classes, hidden_size=128,rnn='LSTM')
                 else:
-                    train_model_rt_binary(model, train_loader, valid_loader, optimizer=optimizer, n_epochs=250,
-                               device=device, experiment='model', data=args.data,cv=args.cv)
+                    model = StateClassifier(feature_size=feature_size, n_state=n_classes, hidden_size=200,rnn='GRU')
+            else:
+                model = EncoderRNN(feature_size=feature_size, hidden_size=50, regres=True, return_all=False, data=args.data, rnn="GRU")
+            if args.train:
+                if not args.binary:
+                    optimizer = torch.optim.Adam(model.parameters(), lr=0.0001, weight_decay=1e-3)
+                    if args.data=='mimic':
+                        train_model(model, train_loader, valid_loader, optimizer=optimizer, n_epochs=100,
+                                    device=device, experiment='model',cv=args.cv)
+                    elif 'simulation' in args.data:
+                        train_model_rt(model=model, train_loader=train_loader, valid_loader=valid_loader, optimizer=optimizer, n_epochs=50,
+                                   device=device, experiment='model', data=args.data,cv=args.cv)
+                    elif args.data=='mimic_int':
+                        optimizer = torch.optim.Adam(model.parameters(), lr=0.0001, weight_decay=0.0001)
+                        if type(activation).__name__==type(torch.nn.Softmax(-1)).__name__: #suresh et al
+                            train_model_multiclass(model=model, train_loader=train_loader, valid_loader=test_loader,
+                            optimizer=optimizer, n_epochs=50, device=device, experiment='model', data=args.data,num=5,
+                            loss_criterion=torch.nn.CrossEntropyLoss(weight=torch.FloatTensor(class_weight).to(device)),cv=args.cv)
+                        else:
+                            train_model_multiclass(model=model, train_loader=train_loader, valid_loader=test_loader,
+                            optimizer=optimizer, n_epochs=25, device=device, experiment='model', data=args.data,num=5,
+                            #loss_criterion=torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor(class_weight).cuda()),cv=args.cv)
+                            loss_criterion=torch.nn.BCEWithLogitsLoss(),cv=args.cv)
+                            #loss_criterion=torch.nn.CrossEntropyLoss(weight=torch.FloatTensor(class_weight).cuda()),cv=args.cv)
+                            #loss_criterion=torch.nn.CrossEntropyLoss(),cv=args.cv)
+                else:
+                    #this learning rate works much better for spike data
+                    optimizer = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-4)
+                    if args.data=='mimic':
+                        train_model(model, train_loader, valid_loader, optimizer=optimizer, n_epochs=200,
+                                    device=device, experiment='model',cv=args.cv)
+                    else:
+                        train_model_rt_binary(model, train_loader, valid_loader, optimizer=optimizer, n_epochs=250,
+                                   device=device, experiment='model', data=args.data,cv=args.cv)
 
-        model.load_state_dict(torch.load(os.path.join('./ckpt/%s/%s_%d.pt' % (args.data, 'model',args.cv))))
+            model.load_state_dict(torch.load(os.path.join('./ckpt/%s/%s_%d.pt' % (args.data, 'model',args.cv))))
 
         if args.explainer == 'fit':
             if args.generator_type=='history':
                 generator = JointFeatureGenerator(feature_size, hidden_size=feature_size * 3, data=args.data)
                 if args.train:
-                    if args.data=='mimic_int' or args.data=='simulation_spike':
+                    # TODO: Clean up redundant logic here
+                    if args.xgb:
+                        if args.data != 'mimic_int' and args.data !='simulation_spike':
+                            n_classes = 2
+                        explainer = FITExplainer(model, activation=lambda x: x, n_classes=n_classes)
+                    elif args.data=='mimic_int' or args.data=='simulation_spike':
                         explainer = FITExplainer(model,activation=torch.nn.Sigmoid(),n_classes=n_classes)
                     else:
                         explainer = FITExplainer(model)
                     explainer.fit_generator(generator, train_loader, valid_loader,cv=args.cv)
                 else:
                     generator.load_state_dict(torch.load(os.path.join('./ckpt/%s/%s_%d.pt' % (args.data, 'joint_generator',args.cv))))
-                    if args.data=='mimic_int' or args.data=='simulation_spike':
+                    if args.xgb:
+                        if args.data != 'mimic_int' and args.data !='simulation_spike':
+                            n_classes = 2
+                        explainer = FITExplainer(model, generator, activation=lambda x: x, n_classes=n_classes)
+                    elif args.data=='mimic_int' or args.data=='simulation_spike':
                         explainer = FITExplainer(model, generator,activation=torch.nn.Sigmoid(),n_classes=n_classes)
                     else:
                         explainer = FITExplainer(model, generator)
@@ -275,7 +295,7 @@ if __name__ == '__main__':
             explainer = TSRExplainer(model, "IG")
 
         elif args.explainer == 'ifit':
-            explainer = IFITExplainer(model, activation=torch.nn.Softmax(-1))
+            explainer = IFITExplainer(model, activation=None if args.xgb else torch.nn.Softmax(-1))
 
         elif args.explainer == 'mock':
             explainer = MockExplainer()
