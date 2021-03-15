@@ -40,8 +40,6 @@ ks = {'simulation_spike': 1, 'simulation': 3, 'simulation_l2x': 4}
 
 
 if __name__ == '__main__':
-    np.random.seed(1234)
-    torch.manual_seed(1234)
     parser = argparse.ArgumentParser(description='Run baseline model for explanation')
     parser.add_argument('--explainer', type=str, default='fit', help='Explainer model')
     parser.add_argument('--data', type=str, default='simulation')
@@ -55,6 +53,10 @@ if __name__ == '__main__':
     parser.add_argument('--gt', type=str, default='true_model', help='specify ground truth score')
     parser.add_argument('--cv', type=int, default=0, help='cross validation')
     args = parser.parse_args()
+
+    np.random.seed(args.cv)
+    torch.manual_seed(args.cv)
+
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     batch_size = 100
 
