@@ -152,7 +152,8 @@ if __name__ == '__main__':
             model.load_state_dict(torch.load(os.path.join('./ckpt/%s/%s_%d.pt' % (args.data, 'retain', args.cv))))
     else:
         if args.xgb:
-            model = XGBPytorchStub(train_loader, valid_loader, xgb_window_size, xgb_buffer_size, xgb_target_size)
+            model = XGBPytorchStub(train_loader, valid_loader, xgb_window_size, xgb_buffer_size, xgb_target_size,
+                                   os.path.join('./ckpt/%s/%s_%d.model' % (args.data, 'xgb_model',args.cv)), True)
         else:
             if not args.binary:
                 if args.data=='mimic_int':
