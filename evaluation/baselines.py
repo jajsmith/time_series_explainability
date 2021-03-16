@@ -23,7 +23,7 @@ from ..TSX.explainers import RETAINexplainer, FITExplainer, IGExplainer, FFCExpl
 from sklearn import metrics
 from TSR.Scripts.Plotting.plot import plotExampleBox
 from xgboost_model import XGBPytorchStub
-from utils import imp_ft_within_ts_acc
+from utils import imp_ft_within_ts
 
 intervention_list = ['vent', 'vaso', 'adenosine', 'dobutamine', 'dopamine', 'epinephrine', 'isuprel', 'milrinone',
                      'norepinephrine', 'phenylephrine', 'vasopressin', 'colloid_bolus', 'crystalloid_bolus', 'nivdurations']
@@ -354,7 +354,7 @@ if __name__ == '__main__':
             plotExampleBox(importance_scores[i], f'plots/{args.data}/{args.explainer}_attributions_{i}', greyScale=True)
             plotExampleBox(gt_importance_test[i], f'plots/{args.data}/ground_truth_attributions_{i}', greyScale=True)
 
-        print('Imp ft within ts accuracy: ', imp_ft_within_ts_acc(importance_scores, gt_importance_test))
+        imp_ft_within_ts(importance_scores, gt_importance_test)
 
         gt_score = gt_importance_test.flatten()
         explainer_score = importance_scores.flatten()
