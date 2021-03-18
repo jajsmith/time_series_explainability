@@ -23,7 +23,7 @@ from ..TSX.explainers import RETAINexplainer, FITExplainer, IGExplainer, FFCExpl
 from sklearn import metrics
 from TSR.Scripts.Plotting.plot import plotExampleBox
 from xgboost_model import XGBPytorchStub
-from utils import imp_ft_within_ts
+from utils import imp_ft_within_ts, plot_calibration_curve_from_pytorch
 
 intervention_list = ['vent', 'vaso', 'adenosine', 'dobutamine', 'dopamine', 'epinephrine', 'isuprel', 'milrinone',
                      'norepinephrine', 'phenylephrine', 'vasopressin', 'colloid_bolus', 'crystalloid_bolus', 'nivdurations']
@@ -335,6 +335,9 @@ if __name__ == '__main__':
                                     for n in range(x.shape[0])])
         importance_scores.append(score)
         ranked_feats.append(ranked_features)
+
+    calibration_path = f'plots/calibration/{args.data}/{"xgb" if args.xgb else "rnn"}_model_{args.cv}.png'
+    plot_calibration_curve_from_pytorch(model, test_loader, calibration_path, activation)
 
     importance_scores = np.concatenate(importance_scores, 0)
     pathlib.Path(output_path + f'/{args.data}').mkdir(parents=True, exist_ok=True)
