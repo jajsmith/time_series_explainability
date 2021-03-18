@@ -7,6 +7,7 @@ from sklearn import metrics
 import torch
 from ..TSX.models import StateClassifier, ConvClassifier, EncoderRNN, StateClassifierMIMIC, RETAIN
 from ..TSX.utils import load_data
+from xgboost_model import XGBPytorchStub
 
 TOP_PATIENTS = [1534, 3734, 82, 3663, 3509, 870, 3305, 1484, 2604, 1672, 2733, 1057, 2599, 3319, 1239, 1671, 
 3095, 3783, 1935, 720, 1961, 3476, 262, 816, 2268, 723, 4469, 3818, 4126, 1575, 1526, 1457, 4542, 2015, 2512, 
@@ -32,6 +33,8 @@ feature_map_mimic = ['ANION GAP', 'ALBUMIN', 'BICARBONATE', 'BILIRUBIN', 'CREATI
 
 select_examples = [5, 8, 10, 40]
 def main(args):
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
     if args.data == 'simulation':
         feature_size = 3
         data_path = './data/simulated_data'
@@ -148,7 +151,9 @@ def main(args):
     # importance_path = '/scratch/gobi2/projects/tsx/new_results/%s' % args.data
     importance_path = os.path.join(args.path, args.data)
 
-    if args.data=='simulation_spike':
+    if args.xgb:
+        activation = lambda x: x
+    elif args.data=='simulation_spike':
         activation = torch.nn.Sigmoid()
         if args.explainer=='retain':
             activation = torch.nn.Softmax(-1)
@@ -160,19 +165,22 @@ def main(args):
         activation = torch.nn.Softmax(-1)
 
     auc_drop, aupr_drop = [], []
-    # for cv in [0, 1, 2]:
-    for cv in [0]:
+    for cv in range(5):
+    # for cv in [0]:
         with open(os.path.join(importance_path, '%s_test_importance_scores_%s.pkl' % (args.explainer, str(cv))),
                   'rb') as f:
             importance_scores = pkl.load(f)
 
-        if args.data=='simulation_spike':
-            model = EncoderRNN(feature_size=feature_size, hidden_size=50, regres=True, return_all=False, data=args.data, rnn="GRU")
-        elif args.data=='mimic_int':
-            model = StateClassifierMIMIC(feature_size=feature_size, n_state=n_classes, hidden_size=128,rnn='LSTM')
-        elif args.data=='mimic' or args.data=='simulation' or args.data=='simulation_l2x':
-            model = StateClassifier(feature_size=feature_size, n_state=n_classes, hidden_size=200,rnn='GRU')
-        model.load_state_dict(torch.load(os.path.join('./ckpt/%s/%s_%d.pt' % (args.data, 'model',cv))))
+        if args.xgb:
+            model = XGBPytorchStub(train_loader, valid_loader, 10, 0, 0, f"./ckpt/mimic/xgb_model_{cv}.model", False)
+        else:
+            if args.data=='simulation_spike':
+                model = EncoderRNN(feature_size=feature_size, hidden_size=50, regres=True, return_all=False, data=args.data, rnn="GRU")
+            elif args.data=='mimic_int':
+                model = StateClassifierMIMIC(feature_size=feature_size, n_state=n_classes, hidden_size=128,rnn='LSTM')
+            elif args.data=='mimic' or args.data=='simulation' or args.data=='simulation_l2x':
+                model = StateClassifier(feature_size=feature_size, n_state=n_classes, hidden_size=200,rnn='GRU')
+            model.load_state_dict(torch.load(os.path.join('./ckpt/%s/%s_%d.pt' % (args.data, 'model',cv)), map_location=torch.device(device)))
 
         #### Plotting
         plot_id = 10
@@ -299,13 +307,13 @@ def main(args):
                     x_t = torch.Tensor(x).unsqueeze(0).permute(0, 2, 1)
                     x_cf_t = torch.Tensor(x_cf).unsqueeze(0).permute(0, 2, 1)
                     y, _, _ = (model(x_t.to(device), torch.ones((1,)) * x_t.shape[1]))
-                    y1.append(torch.nn.Softmax(-1)(y)[0,1].detach().cpu().numpy())
+                    y1.append(activation(y)[0,1].detach().cpu().numpy())
                     y, _, _ = (model(x_cf_t.to(device), torch.ones((1,)) * x_cf_t.shape[1]))
-                    y2.append(torch.nn.Softmax(-1)(y)[0,1].detach().cpu().numpy())
+                    y2.append(activation(y)[0,1].detach().cpu().numpy())
                 else:
-                    y = torch.nn.Softmax(-1)(model(torch.Tensor(x).unsqueeze(0)))[:, 1]  # Be careful! This is fixed for class 1
+                    y = activation(model(torch.Tensor(x).unsqueeze(0)))[:, 1]  # Be careful! This is fixed for class 1
                     y1.append(y.detach().cpu().numpy())
-                    y = torch.nn.Softmax(-1)(model(torch.Tensor(x_cf).unsqueeze(0)))[:, 1]
+                    y = activation(model(torch.Tensor(x_cf).unsqueeze(0)))[:, 1]
                     y2.append(y.detach().cpu().numpy())
 
             elif args.data=='simulation_l2x' or args.data=='simulation':
@@ -322,14 +330,14 @@ def main(args):
                         x_t = torch.Tensor(sample).unsqueeze(0).permute(0, 2, 1)
                         x_cf_t = torch.Tensor(x_cf).unsqueeze(0).permute(0, 2, 1)
                         y, _, _ = (model(x_t.to(device), lengths))
-                        y1.append(torch.nn.Softmax(-1)(y)[0, 1].detach().cpu().numpy())
+                        y1.append(activation(y)[0, 1].detach().cpu().numpy())
                         y, _, _ = (model(x_cf_t.to(device), lengths))
-                        y2.append(torch.nn.Softmax(-1)(y)[0, 1].detach().cpu().numpy())
+                        y2.append(activation(y)[0, 1].detach().cpu().numpy())
                     else:
-                        y = torch.nn.Softmax(-1)(model(torch.Tensor(sample).unsqueeze(0)))[:, 1] # Be careful! This is fixed for class 1
+                        y = activation(model(torch.Tensor(sample).unsqueeze(0)))[:, 1] # Be careful! This is fixed for class 1
                         y1.append(y.detach().cpu().numpy())
 
-                        y = torch.nn.Softmax(-1)(model(torch.Tensor(x_cf).unsqueeze(0)))[:, 1]
+                        y = activation(model(torch.Tensor(x_cf).unsqueeze(0)))[:, 1]
                         y2.append(y.detach().cpu().numpy())
             elif args.data=='simulation_spike':
                 imp = np.unravel_index(importance_scores[i,:,min_t:].argmax(), importance_scores[i,:,min_t:].shape)
@@ -417,6 +425,7 @@ if __name__ == '__main__':
     parser.add_argument('--time_imp', action='store_true', default=False)
     parser.add_argument('--train_pc', type=float, default=1.)
     parser.add_argument('--percentile', action='store_true')
+    parser.add_argument('--xgb', action='store_true')
     parser.add_argument('--path', type=str, default='/scratch/gobi1/shalmali/TSX_results/new_results/')
     args = parser.parse_args()
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
