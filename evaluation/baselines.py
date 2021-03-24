@@ -24,6 +24,7 @@ from sklearn import metrics
 from TSR.Scripts.Plotting.plot import plotExampleBox
 from xgboost_model import XGBPytorchStub
 from utils import imp_ft_within_ts, plot_calibration_curve_from_pytorch
+from generators import ARIMAGenerator
 
 intervention_list = ['vent', 'vaso', 'adenosine', 'dobutamine', 'dopamine', 'epinephrine', 'isuprel', 'milrinone',
                      'norepinephrine', 'phenylephrine', 'vasopressin', 'colloid_bolus', 'crystalloid_bolus', 'nivdurations']
@@ -110,6 +111,8 @@ if __name__ == '__main__':
         #change this to softmax for suresh et al
         activation = torch.nn.Sigmoid()
         #activation = torch.nn.Softmax(-1)
+    if args.xgb:
+        activation = lambda x: x
 
     if not os.path.exists(output_path):
         os.mkdir(output_path)
@@ -200,32 +203,30 @@ if __name__ == '__main__':
             if args.generator_type=='history':
                 generator = JointFeatureGenerator(feature_size, hidden_size=feature_size * 3, data=args.data)
                 if args.train:
-                    # TODO: Clean up redundant logic here
-                    if args.xgb:
-                        if args.data != 'mimic_int' and args.data !='simulation_spike':
-                            n_classes = 2
-                        explainer = FITExplainer(model, activation=lambda x: x, n_classes=n_classes)
-                    elif args.data=='mimic_int' or args.data=='simulation_spike':
-                        explainer = FITExplainer(model,activation=torch.nn.Sigmoid(),n_classes=n_classes)
+                    if args.data=='mimic_int' or args.data=='simulation_spike':
+                        explainer = FITExplainer(model,activation=activation,n_classes=n_classes)
+                    elif args.xgb:
+                        explainer = FITExplainer(model, activation=activation)
                     else:
                         explainer = FITExplainer(model)
                     explainer.fit_generator(generator, train_loader, valid_loader,cv=args.cv)
                 else:
                     generator.load_state_dict(torch.load(os.path.join('./ckpt/%s/%s_%d.pt' % (args.data, 'joint_generator',args.cv))))
-                    if args.xgb:
-                        if args.data != 'mimic_int' and args.data !='simulation_spike':
-                            n_classes = 2
-                        explainer = FITExplainer(model, generator, activation=lambda x: x, n_classes=n_classes)
-                    elif args.data=='mimic_int' or args.data=='simulation_spike':
-                        explainer = FITExplainer(model, generator,activation=torch.nn.Sigmoid(),n_classes=n_classes)
+                    if args.data=='mimic_int' or args.data=='simulation_spike':
+                        explainer = FITExplainer(model, generator,activation=activation,n_classes=n_classes)
+                    elif args.xgb:
+                        explainer = FITExplainer(model, generator, activation=activation)
                     else:
                         explainer = FITExplainer(model, generator)
             elif args.generator_type=='no_history':
                 generator = JointDistributionGenerator(n_components=5, train_loader=train_loader)
                 if args.data=='mimic_int' or args.data=='simulation_spike':
-                    explainer = FITExplainer(model, generator,activation=torch.nn.Sigmoid())
+                    explainer = FITExplainer(model, generator,activation=activation)
                 else:
                     explainer = FITExplainer(model, generator)
+            elif args.generator_type == 'arima':
+                generator = ARIMAGenerator()
+                explainer = FITExplainer(model, generator, activation=activation)
 
         elif args.explainer == 'integrated_gradient':
             if args.data=='mimic_int' or args.data=='simulation_spike':
@@ -299,7 +300,7 @@ if __name__ == '__main__':
             explainer = TSRExplainer(model, "IG")
 
         elif args.explainer == 'ifit':
-            explainer = IFITExplainer(model, activation=None if args.xgb else torch.nn.Softmax(-1))
+            explainer = IFITExplainer(model, activation=activation)
 
         elif args.explainer == 'mock':
             explainer = MockExplainer()
