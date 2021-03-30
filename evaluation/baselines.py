@@ -1,3 +1,4 @@
+import shap
 import os
 import argparse
 import torch
@@ -22,7 +23,7 @@ from ..TSX.explainers import RETAINexplainer, FITExplainer, IGExplainer, FFCExpl
     LIMExplainer, CarryForwardExplainer, MeanImpExplainer, TSRExplainer, GradExplainer, MockExplainer, IFITExplainer
 from sklearn import metrics
 from TSR.Scripts.Plotting.plot import plotExampleBox
-from xgboost_model import XGBPytorchStub
+from xgboost_model import XGBPytorchStub, remove_and_retrain
 from utils import imp_ft_within_ts, plot_calibration_curve_from_pytorch
 
 intervention_list = ['vent', 'vaso', 'adenosine', 'dobutamine', 'dopamine', 'epinephrine', 'isuprel', 'milrinone',
@@ -51,6 +52,8 @@ if __name__ == '__main__':
     parser.add_argument('--mimic_path', type=str)
     parser.add_argument('--binary', action='store_true', default=False)
     parser.add_argument('--xgb', action='store_true', default=False)
+    parser.add_argument('--roar', action='store_true', default=False)
+    parser.add_argument('--skip', action='store_true', default=False)
     parser.add_argument('--gt', type=str, default='true_model', help='specify ground truth score')
     parser.add_argument('--cv', type=int, default=0, help='cross validation')
     args = parser.parse_args()
@@ -128,6 +131,16 @@ if __name__ == '__main__':
     else:
         _, train_loader, valid_loader, test_loader = load_simulated_data(batch_size=batch_size, datapath=data_path,
                                                                          percentage=0.8, data_type=data_type,cv=args.cv)
+
+    assert args.xgb or not args.roar
+    if args.roar and args.skip:
+        importance_scores = None
+        if args.explainer != 'gain':
+            with open(os.path.join(output_path + f'/{args.data}', '%s_test_importance_scores_%d.pkl' % (args.explainer, args.cv)), 'r') as imp_file:
+                importance_scores = pkl.load(imp_file)
+        remove_and_retrain(train_loader, test_loader, xgb_window_size, xgb_buffer_size, xgb_target_size,
+                           f'plots/{args.data}/xgb_roar_{args.explainer}', args.explainer, importance_scores)
+        quit()
 
     # Prepare model to explain
     if args.explainer == 'retain':
@@ -345,6 +358,9 @@ if __name__ == '__main__':
     with open(os.path.join(output_path + f'/{args.data}', '%s_test_importance_scores_%d.pkl' % (args.explainer, args.cv)), 'wb') as f:
         pkl.dump(importance_scores, f, protocol=pkl.HIGHEST_PROTOCOL)
 
+    if args.roar:
+        remove_and_retrain(train_loader, test_loader, xgb_window_size, xgb_buffer_size, xgb_target_size,
+                           f'plots/{args.data}/xgb_roar_{args.explainer}', args.explainer, importance_scores)
 
     ranked_feats = np.concatenate(ranked_feats,0)
     with open(os.path.join(output_path, '%s_test_ranked_scores.pkl' % args.explainer), 'wb') as f:
@@ -355,7 +371,7 @@ if __name__ == '__main__':
         gt_importance_test.astype(int)
 
         for i in range(10):
-            plotExampleBox(importance_scores[i], f'plots/{args.data}/{args.explainer}_attributions_{i}', greyScale=True)
+            plotExampleBox(np.abs(importance_scores[i]), f'plots/{args.data}/{args.explainer}_attributions_{i}', greyScale=True)
             plotExampleBox(gt_importance_test[i], f'plots/{args.data}/ground_truth_attributions_{i}', greyScale=True)
 
         imp_ft_within_ts(importance_scores, gt_importance_test)

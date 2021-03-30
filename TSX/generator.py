@@ -258,7 +258,7 @@ class JointFeatureGenerator(torch.nn.Module):
         covariance_cond = cov_1_1 - torch.bmm( torch.bmm(cov_1_2, torch.inverse(cov_2_2)), torch.transpose(cov_1_2, 2, 1) )
 
         # P(x_{-i,t}|x_{i,t})
-        likelihood = MultivariateNormal(loc=mean_cond.squeeze(-1), covariance_matrix=covariance_cond)
+        likelihood = MultivariateNormal(loc=mean_cond, covariance_matrix=covariance_cond)
         sample = likelihood.rsample()
         full_sample = current.clone()
         full_sample[:,sig_inds_comp] = sample
