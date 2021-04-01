@@ -135,8 +135,8 @@ if __name__ == '__main__':
     assert args.xgb or not args.roar
     if args.roar and args.skip:
         importance_scores = None
-        if args.explainer != 'gain':
-            with open(os.path.join(output_path + f'/{args.data}', '%s_test_importance_scores_%d.pkl' % (args.explainer, args.cv)), 'r') as imp_file:
+        if args.explainer not in ['gain', 'random']:
+            with open(os.path.join(output_path + f'/{args.data}', '%s_test_importance_scores_%d.pkl' % (args.explainer, args.cv)), 'rb') as imp_file:
                 importance_scores = pkl.load(imp_file)
         remove_and_retrain(train_loader, test_loader, xgb_window_size, xgb_buffer_size, xgb_target_size,
                            f'plots/{args.data}/xgb_roar_{args.explainer}', args.explainer, importance_scores)
