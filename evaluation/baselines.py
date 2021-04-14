@@ -20,7 +20,7 @@ from ..TSX.models import StateClassifier, RETAIN, EncoderRNN, ConvClassifier, St
 from ..TSX.generator import JointFeatureGenerator, JointDistributionGenerator
 from ..TSX.explainers import RETAINexplainer, FITExplainer, IGExplainer, FFCExplainer, \
     DeepLiftExplainer, GradientShapExplainer, AFOExplainer, FOExplainer, SHAPExplainer, \
-    LIMExplainer, CarryForwardExplainer, MeanImpExplainer, TSRExplainer, GradExplainer, MockExplainer, IFITExplainer
+    LIMExplainer, CarryForwardExplainer, MeanImpExplainer, TSRExplainer, GradExplainer, MockExplainer, WFITExplainer
 from sklearn import metrics
 from TSR.Scripts.Plotting.plot import plotExampleBox
 from xgboost_model import XGBPytorchStub, remove_and_retrain
@@ -212,7 +212,9 @@ if __name__ == '__main__':
             model.load_state_dict(torch.load(os.path.join('./ckpt/%s/%s_%d.pt' % (args.data, 'model',args.cv))))
 
         if args.explainer == 'fit':
-            if args.generator_type=='history':
+            if args.N > 0:
+                explainer = WFITExplainer(model, args.N, False, activation=None if args.xgb else torch.nn.Softmax(-1))
+            elif args.generator_type=='history':
                 generator = JointFeatureGenerator(feature_size, hidden_size=feature_size * 3, data=args.data)
                 if args.train:
                     # TODO: Clean up redundant logic here
@@ -314,7 +316,7 @@ if __name__ == '__main__':
             explainer = TSRExplainer(model, "IG")
 
         elif args.explainer == 'ifit':
-            explainer = IFITExplainer(model, activation=None if args.xgb else torch.nn.Softmax(-1), N=args.N)
+            explainer = WFITExplainer(model, args.N, True, activation=None if args.xgb else torch.nn.Softmax(-1))
 
         elif args.explainer == 'mock':
             explainer = MockExplainer()
