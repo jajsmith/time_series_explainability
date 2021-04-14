@@ -56,6 +56,7 @@ if __name__ == '__main__':
     parser.add_argument('--skip', action='store_true', default=False)
     parser.add_argument('--gt', type=str, default='true_model', help='specify ground truth score')
     parser.add_argument('--cv', type=int, default=0, help='cross validation')
+    parser.add_argument('--N', type=int, default=1, help='fit/ifit window size')
     args = parser.parse_args()
 
     np.random.seed(args.cv)
@@ -313,7 +314,7 @@ if __name__ == '__main__':
             explainer = TSRExplainer(model, "IG")
 
         elif args.explainer == 'ifit':
-            explainer = IFITExplainer(model, activation=None if args.xgb else torch.nn.Softmax(-1))
+            explainer = IFITExplainer(model, activation=None if args.xgb else torch.nn.Softmax(-1), N=args.N)
 
         elif args.explainer == 'mock':
             explainer = MockExplainer()
