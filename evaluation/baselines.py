@@ -212,7 +212,7 @@ if __name__ == '__main__':
             model.load_state_dict(torch.load(os.path.join('./ckpt/%s/%s_%d.pt' % (args.data, 'model',args.cv))))
 
         if args.explainer == 'fit':
-            if args.N > 0:
+            if args.N > 1:
                 explainer = WFITExplainer(model, args.N, False, activation=None if args.xgb else torch.nn.Softmax(-1))
             elif args.generator_type=='history':
                 generator = JointFeatureGenerator(feature_size, hidden_size=feature_size * 3, data=args.data)
