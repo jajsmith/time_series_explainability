@@ -100,8 +100,7 @@ class FeatureGenerator(torch.nn.Module):
         mu = mu_std[:,0:mu_std.shape[1]//2]
         std = mu_std[:, mu_std.shape[1]//2:]
         reparam_samples = mu + std*torch.randn_like(mu).to(self.device)
-        full_sample = torch.cat([known_signal[:, 0:sig_ind], reparam_samples, known_signal[:, sig_ind:]], 1)
-        return full_sample, mu
+        return reparam_samples, mu
 
 
 class JointFeatureGenerator(torch.nn.Module):
@@ -411,8 +410,8 @@ def train_feature_generator(generator_model, train_loader, valid_loader, generat
     data=generator_model.data
     if data=='mimic':
         feature_map = feature_map_mimic
-    elif 'simulation' in data:
-        feature_map = ['0','1','2']
+    else:
+        feature_map = [str(i) for i in range(next(iter(train_loader))[0].shape[1])]
 
     # Overwrite default learning parameters if values are passed
     default_params = {'lr':0.0001, 'weight_decay':1e-3, 'generator_type':'RNN_generator'}
@@ -435,7 +434,7 @@ def train_feature_generator(generator_model, train_loader, valid_loader, generat
         for i, (signals, _) in enumerate(train_loader):
             for t in [int(tt) for tt in np.logspace(1.2,np.log10(signals.shape[2]),num=num)]:
                 label = signals[:, feature_to_predict, t:t+generator_model.prediction_size].contiguous().view(-1, generator_model.prediction_size)
-                signal = torch.Tensor(signals[:, :, t].float()).to(device)
+                signal = torch.Tensor(signals[:, :, t:t+generator_model.prediction_size].float()).to(device)
                 past = signals[:,:,:t]
                 optimizer.zero_grad()
                 prediction, mus = generator_model(signal, past)
