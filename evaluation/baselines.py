@@ -211,7 +211,12 @@ if __name__ == '__main__':
 
             model.load_state_dict(torch.load(os.path.join('./ckpt/%s/%s_%d.pt' % (args.data, 'model',args.cv))))
 
-        if args.explainer == 'fit':
+        if args.N > 1:
+            assert args.explainer in ['fit', 'ifit']
+            inverse = args.explainer == 'ifit'
+            explainer = WFITExplainer(model, args.N, inverse, train_loader, test_loader, args.data + f'_{args.N}',
+                                      activation=None if args.xgb else torch.nn.Softmax(-1), train_generators=args.train_gen)
+        elif args.explainer == 'fit':
             if args.N > 1:
                 explainer = WFITExplainer(model, args.N, False, activation=None if args.xgb else torch.nn.Softmax(-1))
             elif args.generator_type=='history':
@@ -316,7 +321,7 @@ if __name__ == '__main__':
             explainer = TSRExplainer(model, "IG")
 
         elif args.explainer == 'ifit':
-            explainer = WFITExplainer(model, args.N, True, activation=None if args.xgb else torch.nn.Softmax(-1))
+            explainer = WFITExplainer(model, args.N, True, train_loader, test_loader, args.data + f'_{args.N}', activation=None if args.xgb else torch.nn.Softmax(-1))
 
         elif args.explainer == 'mock':
             explainer = MockExplainer()

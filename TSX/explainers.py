@@ -7,7 +7,7 @@ import re
 # from TSX.generator import JointFeatureGenerator, train_joint_feature_generator, JointDistributionGenerator
 from .utils import load_simulated_data, AverageMeter
 from TSR.Scripts.tsr import get_tsr_saliency
-from inverse_fit import inverse_fit_attribute, wfit_attribute
+from inverse_fit import wfit_attribute, get_wfit_generators
 
 from sklearn.metrics import roc_auc_score, average_precision_score
 from tqdm import tnrange, tqdm_notebook
@@ -749,14 +749,18 @@ class GradExplainer:
 
 
 class WFITExplainer:
-    def __init__(self, model, N, inverse, activation=None):
+    def __init__(self, model, N, inverse, train_loader, test_loader, name, activation=None, train_generators=True):
         self.model = model
         self.activation = activation
         self.N = N
         self.inverse = inverse
+        self.generators = None
+        if N > 1 or not inverse:
+            self.generators = get_wfit_generators(train_loader, test_loader, N, name, train_generators)
 
     def attribute(self, x, y):
-        return wfit_attribute(x, self.model, self.N, activation=self.activation, collapse=True, inverse=self.inverse)
+        return wfit_attribute(x, self.model, self.N, activation=self.activation, collapse=True, inverse=self.inverse,
+                              generators=self.generators)
 
 
 class MockExplainer:
