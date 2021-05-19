@@ -20,7 +20,7 @@ from ..TSX.models import StateClassifier, RETAIN, EncoderRNN, ConvClassifier, St
 from ..TSX.generator import JointFeatureGenerator, JointDistributionGenerator
 from ..TSX.explainers import RETAINexplainer, FITExplainer, IGExplainer, FFCExplainer, \
     DeepLiftExplainer, GradientShapExplainer, AFOExplainer, FOExplainer, SHAPExplainer, \
-    LIMExplainer, CarryForwardExplainer, MeanImpExplainer, TSRExplainer, GradExplainer, MockExplainer, WFITExplainer
+    LIMExplainer, CarryForwardExplainer, MeanImpExplainer, TSRExplainer, GradExplainer, MockExplainer, WFITExplainer, IFITExplainer
 from sklearn import metrics
 from TSR.Scripts.Plotting.plot import plotExampleBox
 from xgboost_model import XGBPytorchStub, remove_and_retrain
@@ -57,6 +57,8 @@ if __name__ == '__main__':
     parser.add_argument('--gt', type=str, default='true_model', help='specify ground truth score')
     parser.add_argument('--cv', type=int, default=0, help='cross validation')
     parser.add_argument('--N', type=int, default=1, help='fit/ifit window size')
+    parser.add_argument('--delay', type=int, default=0)
+    parser.add_argument('--gen_epochs', type=int, default=300, help='number of epochs to train the generator')
     args = parser.parse_args()
 
     np.random.seed(args.cv)
@@ -100,6 +102,12 @@ if __name__ == '__main__':
         else:
             activation = torch.nn.Sigmoid()
         batch_size = 200
+
+        if args.delay != 0:
+            assert args.delay > 0
+            data_path = f'./data/simulated_spike_data_delay_{args.delay}'
+            args.data = f'simulation_spike_delay_{args.delay}'
+
     elif args.data == 'mimic':
         data_type = 'mimic'
         timeseries_feature_size = len(feature_map_mimic)
@@ -152,7 +160,7 @@ if __name__ == '__main__':
         elif args.data=='mimic_int':
             model = RETAIN(dim_input=feature_size, dim_emb=32, dropout_emb=0.4, dim_alpha=16, dim_beta=16,
                        dropout_context=0.4, dim_output=n_classes)
-        elif args.data=='simulation_spike':
+        elif args.data.startswith('simulation_spike'):
             model = RETAIN(dim_input=feature_size, dim_emb=4, dropout_emb=0.4, dim_alpha=16, dim_beta=16,
                        dropout_context=0.4, dim_output=n_classes)
         explainer = RETAINexplainer(model, args.data)
@@ -209,66 +217,66 @@ if __name__ == '__main__':
                         train_model_rt_binary(model, train_loader, valid_loader, optimizer=optimizer, n_epochs=250,
                                    device=device, experiment='model', data=args.data,cv=args.cv)
 
-            model.load_state_dict(torch.load(os.path.join('./ckpt/%s/%s_%d.pt' % (args.data, 'model',args.cv))))
+            model.load_state_dict(torch.load(os.path.join('./ckpt/%s/%s_%d.pt' % (args.data, 'model',args.cv)), map_location=torch.device('cpu')))
 
         if args.N > 1:
             assert args.explainer in ['fit', 'ifit']
             inverse = args.explainer == 'ifit'
             explainer = WFITExplainer(model, args.N, inverse, train_loader, test_loader, args.data + f'_{args.N}',
                                       activation=None if args.xgb else torch.nn.Softmax(-1), train_generators=args.train_gen)
-        elif args.explainer == 'fit':
+        elif args.explainer == 'fit' or args.explainer == 'ifit':
             if args.N > 1:
                 explainer = WFITExplainer(model, args.N, False, activation=None if args.xgb else torch.nn.Softmax(-1))
             elif args.generator_type=='history':
                 generator = JointFeatureGenerator(feature_size, hidden_size=feature_size * 3, data=args.data)
-                if args.train:
+                if args.train_gen:
                     # TODO: Clean up redundant logic here
                     if args.xgb:
-                        if args.data != 'mimic_int' and args.data !='simulation_spike':
+                        if args.data != 'mimic_int' and not args.data.startswith('simulation_spike'):
                             n_classes = 2
                         explainer = FITExplainer(model, activation=lambda x: x, n_classes=n_classes)
-                    elif args.data=='mimic_int' or args.data=='simulation_spike':
+                    elif args.data=='mimic_int' or args.data.startswith('simulation_spike'):
                         explainer = FITExplainer(model,activation=torch.nn.Sigmoid(),n_classes=n_classes)
                     else:
                         explainer = FITExplainer(model)
-                    explainer.fit_generator(generator, train_loader, valid_loader,cv=args.cv)
+                    explainer.fit_generator(generator, train_loader, valid_loader,cv=args.cv, n_epochs=args.gen_epochs)
                 else:
-                    generator.load_state_dict(torch.load(os.path.join('./ckpt/%s/%s_%d.pt' % (args.data, 'joint_generator',args.cv))))
+                    generator.load_state_dict(torch.load(os.path.join('./ckpt/%s/%s_%d.pt' % (args.data, 'joint_generator',args.cv)), map_location=torch.device('cpu')))
                     if args.xgb:
-                        if args.data != 'mimic_int' and args.data !='simulation_spike':
+                        if args.data != 'mimic_int' and not args.data.startswith('simulation_spike'):
                             n_classes = 2
                         explainer = FITExplainer(model, generator, activation=lambda x: x, n_classes=n_classes)
-                    elif args.data=='mimic_int' or args.data=='simulation_spike':
+                    elif args.data=='mimic_int' or args.data.startswith('simulation_spike'):
                         explainer = FITExplainer(model, generator,activation=torch.nn.Sigmoid(),n_classes=n_classes)
                     else:
                         explainer = FITExplainer(model, generator)
             elif args.generator_type=='no_history':
                 generator = JointDistributionGenerator(n_components=5, train_loader=train_loader)
-                if args.data=='mimic_int' or args.data=='simulation_spike':
+                if args.data=='mimic_int' or args.data.startswith('simulation_spike'):
                     explainer = FITExplainer(model, generator,activation=torch.nn.Sigmoid())
                 else:
                     explainer = FITExplainer(model, generator)
 
         elif args.explainer == 'integrated_gradient':
-            if args.data=='mimic_int' or args.data=='simulation_spike':
+            if args.data=='mimic_int' or args.data.startswith('simulation_spike'):
                 explainer = IGExplainer(model,activation=activation)
             else:
                 explainer = IGExplainer(model)
 
         elif args.explainer == 'deep_lift':
-            if args.data=='mimic_int' or args.data=='simulation_spike':
+            if args.data=='mimic_int' or args.data.startswith('simulation_spike'):
                 explainer = DeepLiftExplainer(model, activation=activation)
             else:
                 explainer = DeepLiftExplainer(model)
 
         elif args.explainer == 'fo':
-            if args.data=='mimic_int' or args.data=='simulation_spike':
+            if args.data=='mimic_int' or args.data.startswith('simulation_spike'):
                 explainer = FOExplainer(model,activation=activation)
             else:
                 explainer = FOExplainer(model)
 
         elif args.explainer == 'afo':
-            if args.data=='mimic_int' or args.data=='simulation_spike':
+            if args.data=='mimic_int' or args.data.startswith('simulation_spike'):
                 explainer = AFOExplainer(model, train_loader,activation=activation)
             else:
                 explainer = AFOExplainer(model, train_loader)
@@ -280,7 +288,7 @@ if __name__ == '__main__':
             explainer = MeanImpExplainer(model, train_loader)
 
         elif args.explainer == 'gradient_shap':
-            if args.data=='mimic_int' or args.data=='simulation_spike':
+            if args.data=='mimic_int' or args.data.startswith('simulation_spike'):
                 explainer = GradientShapExplainer(model, activation=activation)
             else:
                 explainer = GradientShapExplainer(model)
@@ -288,14 +296,14 @@ if __name__ == '__main__':
         elif args.explainer == 'ffc':
             generator = JointFeatureGenerator(feature_size, hidden_size=feature_size * 3, data=args.data)
             if args.train:
-                if args.data=='mimic_int' or args.data=='simulation_spike':
+                if args.data=='mimic_int' or args.data.startswith('simulation_spike'):
                     explainer = FFCExplainer(model,activation=activation)
                 else:
                     explainer = FFCExplainer(model)
                 explainer.fit_generator(generator, train_loader, valid_loader)
             else:
                 generator.load_state_dict(torch.load(os.path.join('./ckpt/%s/%s.pt' % (args.data, 'joint_generator'))))
-                if args.data=='mimic_int' or args.data=='simulation_spike':
+                if args.data=='mimic_int' or args.data.startswith('simulation_spike'):
                     explainer = FFCExplainer(model, generator,activation=activation)
                 else:
                     explainer = FFCExplainer(model, generator)
@@ -304,7 +312,7 @@ if __name__ == '__main__':
             explainer = SHAPExplainer(model, train_loader)
 
         elif args.explainer == 'lime':
-            if args.data=='mimic_int' or args.data=='simulation_spike':
+            if args.data=='mimic_int' or args.data.startswith('simulation_spike'):
                 explainer = LIMExplainer(model, train_loader, activation=activation,n_classes=n_classes)
             else:
                 explainer = LIMExplainer(model, train_loader)
@@ -321,7 +329,7 @@ if __name__ == '__main__':
             explainer = TSRExplainer(model, "IG")
 
         elif args.explainer == 'ifit':
-            explainer = WFITExplainer(model, args.N, True, train_loader, test_loader, args.data + f'_{args.N}', activation=None if args.xgb else torch.nn.Softmax(-1))
+            explainer = IFITExplainer(model, activation=None if args.xgb else torch.nn.Softmax(-1))
 
         elif args.explainer == 'mock':
             explainer = MockExplainer()
