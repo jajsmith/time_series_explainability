@@ -238,33 +238,33 @@ def logistic(x):
 
 
 if __name__=='__main__':
-    ts_delay = 1
+    delay_amounts = range(5)
+    for ts_delay in delay_amounts:
+        spike_dir = f'./data/simulated_spike_data_delay_{ts_delay}' if ts_delay != 0 else f'./data/simulated_spike_data'
 
-    spike_dir = f'./data/simulated_spike_data_delay_{ts_delay}' if ts_delay != 0 else f'./data/simulated_spike_data'
+        if not os.path.exists('./data'):
+            os.mkdir('./data')
+        n_samples = 3000
+        x_train_n,y_train,x_test_n,y_test,thresholds_train,thresholds_test, gt_importance_train, gt_importance_test = main(n_samples=n_samples, plot=False)
 
-    if not os.path.exists('./data'):
-        os.mkdir('./data')
-    n_samples = 3000
-    x_train_n,y_train,x_test_n,y_test,thresholds_train,thresholds_test, gt_importance_train, gt_importance_test = main(n_samples=n_samples, plot=False)
+        if ts_delay != 0:
+            assert ts_delay > 0
+            def delay_by_n(x, n):
+                d = np.zeros_like(x)
+                d[:, n:] = x[: , :-n]
+                return d
 
-    if ts_delay != 0:
-        assert ts_delay > 0
-        def delay_by_n(x, n):
-            d = np.zeros_like(x)
-            d[:, n:] = x[: , :-n]
-            return d
+            y_train = delay_by_n(y_train, ts_delay)
+            y_test = delay_by_n(y_test, ts_delay)
 
-        y_train = delay_by_n(y_train, ts_delay)
-        y_test = delay_by_n(y_test, ts_delay)
-
-    if not os.path.exists(spike_dir):
-        os.mkdir(spike_dir)
-    save_data(spike_dir + '/x_train.pkl', x_train_n)
-    save_data(spike_dir + '/y_train.pkl', y_train)
-    save_data(spike_dir + '/x_test.pkl', x_test_n)
-    save_data(spike_dir + '/y_test.pkl', y_test)
-    save_data(spike_dir + '/thresholds_train.pkl', thresholds_train)
-    save_data(spike_dir + '/thresholds_test.pkl', thresholds_test)
-    save_data(spike_dir + '/gt_train.pkl', gt_importance_train)
-    save_data(spike_dir + '/gt_test.pkl', gt_importance_test)
-    print(gt_importance_train.shape)
+        if not os.path.exists(spike_dir):
+            os.mkdir(spike_dir)
+        save_data(spike_dir + '/x_train.pkl', x_train_n)
+        save_data(spike_dir + '/y_train.pkl', y_train)
+        save_data(spike_dir + '/x_test.pkl', x_test_n)
+        save_data(spike_dir + '/y_test.pkl', y_test)
+        save_data(spike_dir + '/thresholds_train.pkl', thresholds_train)
+        save_data(spike_dir + '/thresholds_test.pkl', thresholds_test)
+        save_data(spike_dir + '/gt_train.pkl', gt_importance_train)
+        save_data(spike_dir + '/gt_test.pkl', gt_importance_test)
+        print(gt_importance_train.shape)

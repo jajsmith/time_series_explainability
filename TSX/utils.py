@@ -365,6 +365,7 @@ def train_model_rt(model, train_loader, valid_loader, optimizer, n_epochs, devic
                   ' AUC: %.2f' % (auc_test))
 
     test_loss, recall_test, precision_test, auc_test, correct_label_test = test_model_rt(model, valid_loader, num=test_num)
+    print('Test Acc: ', 100 * correct_label_test / (len(valid_loader.dataset) * test_num))
     print('Test AUC: ', auc_test)
 
     # Save model and results
