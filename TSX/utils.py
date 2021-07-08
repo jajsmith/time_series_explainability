@@ -1,5 +1,6 @@
 import numpy as np
 import os, sys
+import gc
 import torch
 import torch.utils.data as utils
 from torch.utils.data import DataLoader
@@ -216,7 +217,7 @@ def train_model(model, train_loader, valid_loader, optimizer, n_epochs, device, 
     plt.savefig(os.path.join('./plots', data, 'train_loss.pdf'))
 
 
-def train_model_multiclass(model, train_loader, valid_loader, optimizer, n_epochs, device, experiment, data='ddg',num=5, loss_criterion=torch.nn.CrossEntropyLoss(),cv=0):
+def train_model_multiclass(model, train_loader, valid_loader, optimizer, n_epochs, device, experiment, data='ddg', num=5, loss_criterion=torch.nn.CrossEntropyLoss(), cv=0):
     print('Training black-box model on ', data)
     train_loss_trend = []
     test_loss_trend = []
@@ -303,7 +304,7 @@ def train_model_multiclass(model, train_loader, valid_loader, optimizer, n_epoch
 
 
 def train_model_rt(model, train_loader, valid_loader, optimizer, n_epochs, device, experiment, data='simulation',
-                   num=5,cv=0):
+                   num=5, cv=0):
     print('Training black-box model on ', data)
     train_loss_trend = []
     test_loss_trend = []
@@ -355,7 +356,7 @@ def train_model_rt(model, train_loader, valid_loader, optimizer, n_epochs, devic
         train_loss_trend.append(epoch_loss / ((i + 1) * num))
         test_loss_trend.append(test_loss)
 
-        if epoch % 10 == 0:
+        if epoch % 50 == 0:
             print('\nEpoch %d' % (epoch))
             print('Training ===>loss: ', epoch_loss / ((i + 1) * num),
                   ' Accuracy: %.2f percent' % (100 * correct_label_train / (len(train_loader.dataset) * num)),
@@ -379,7 +380,7 @@ def train_model_rt(model, train_loader, valid_loader, optimizer, n_epochs, devic
     plt.savefig(os.path.join('./plots', data, 'train_loss.pdf'))
     return model_path
 
-def train_model_rt_binary(model, train_loader, valid_loader, optimizer, n_epochs, device, experiment, data='simulation',num=5,cv=0):
+def train_model_rt_binary(model, train_loader, valid_loader, optimizer, n_epochs, device, experiment, data='simulation', num=5, cv=0):
     train_loss_trend = []
     test_loss_trend = []
 
@@ -418,7 +419,7 @@ def train_model_rt_binary(model, train_loader, valid_loader, optimizer, n_epochs
         train_loss_trend.append(epoch_loss/((i+1)*num))
         test_loss_trend.append(test_loss)
 
-        if epoch % 10 == 0:
+        if epoch % 50 == 0:
             print('\nEpoch %d' % (epoch))
             print('Training ===>loss: ', epoch_loss/((i+1)*num),
                   ' Accuracy: %.2f percent' % (100 * correct_label_train / (len(train_loader.dataset)*num)),
@@ -1271,7 +1272,6 @@ def compute_median_rank(ranked_feats, ground_truth, soft=False,K=4, tau=0.2):
                     median_ranks[n,t] = np.median(curr_sample[:,t])
     return median_ranks, np.nanmean(median_ranks), np.nanstd(median_ranks)
 
-
 def plot_heatmap_text(ranked_scores, scores, filepath,ax):
     # assumes same shape of ranked scores and scores
     heatmap = ax.pcolormesh(-ranked_scores,cmap=matplotlib.cm.Greens)
@@ -1283,3 +1283,57 @@ def plot_heatmap_text(ranked_scores, scores, filepath,ax):
 
     #ax.colorbar(heatmap)
     #plt.savefig(filepath, dpi=300, bbox_inches='tight')
+# From https://gist.github.com/Stonesjtu/368ddf5d9eb56669269ecdf9b0d21cbe
+
+def mem_report():
+    '''Report the memory usage of the tensor.storage in pytorch
+    Both on CPUs and GPUs are reported'''
+
+    def _mem_report(tensors, mem_type):
+        '''Print the selected tensors of type
+        There are two major storage types in our major concern:
+            - GPU: tensors transferred to CUDA devices
+            - CPU: tensors remaining on the system memory (usually unimportant)
+        Args:
+            - tensors: the tensors of specified type
+            - mem_type: 'CPU' or 'GPU' in current implementation '''
+        print('Storage on %s' %(mem_type))
+        print('-'*LEN)
+        total_numel = 0
+        total_mem = 0
+        visited_data = []
+        for tensor in tensors:
+            if tensor.is_sparse:
+                continue
+            # a data_ptr indicates a memory block allocated
+            data_ptr = tensor.storage().data_ptr()
+            if data_ptr in visited_data:
+                continue
+            visited_data.append(data_ptr)
+
+            numel = tensor.storage().size()
+            total_numel += numel
+            element_size = tensor.storage().element_size()
+            mem = numel*element_size /1024/1024 # 32bit=4Byte, MByte
+            total_mem += mem
+            element_type = type(tensor).__name__
+            size = tuple(tensor.size())
+
+            #print('%s\t\t%s\t\t%.2f' % (
+            #    element_type,
+            #    size,
+            #    mem) )
+        #print('-'*LEN)
+        print('Total Tensors: %d \tUsed Memory Space: %.2f MBytes' % (total_numel, total_mem) )
+        print('-'*LEN)
+
+    LEN = 65
+    print('='*LEN)
+    objects = gc.get_objects()
+    print('%s\t%s\t\t\t%s' %('Element type', 'Size', 'Used MEM(MBytes)') )
+    tensors = [obj for obj in objects if torch.is_tensor(obj)]
+    cuda_tensors = [t for t in tensors if t.is_cuda]
+    host_tensors = [t for t in tensors if not t.is_cuda]
+    _mem_report(cuda_tensors, 'GPU')
+    _mem_report(host_tensors, 'CPU')
+    print('='*LEN)

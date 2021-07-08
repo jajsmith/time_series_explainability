@@ -80,7 +80,7 @@ class FeatureGenerator(torch.nn.Module):
         """
         Sample full observation at t, given past information
         :param x: observation at time t
-        :param past: All observations upto time t
+        :param past: All observations up to time t
         :param sig_ind: Index of the feature to investigate
         :return: full sample at time t
         """
@@ -402,7 +402,7 @@ def save_ckpt(generator_model, fname, data):
     torch.save(generator_model.state_dict(), fname)
 
 
-def train_feature_generator(generator_model, train_loader, valid_loader, generator_type, feature_to_predict=1, n_epochs=30, **kwargs):
+def train_feature_generator(generator_model, train_loader, valid_loader, generator_type, feature_to_predict=1, n_epochs=30, cv=0, verbose=False, **kwargs):
     train_loss_trend = []
     test_loss_trend = []
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -447,18 +447,21 @@ def train_feature_generator(generator_model, train_loader, valid_loader, generat
         train_loss_trend.append(epoch_loss/((i+1)*num))
 
         test_loss_trend.append(test_loss)
-        fname=os.path.join('./ckpt', data, '%s_%s.pt'%(feature_map[feature_to_predict], generator_type))
+        fname=os.path.join('./ckpt', data, '%s_%s_%s.pt'%(feature_map[feature_to_predict], generator_type, cv))
 
         if test_loss<best_loss:
             best_loss = test_loss
             best_epoch = epoch
             save_ckpt(generator_model, fname,data)
-            print('saved ckpt:in epoch', epoch)
+            if verbose:
+                print('saved ckpt:in epoch', epoch)
 
-        if epoch % 10 == 0:
+        if verbose and epoch % 10 == 0:
             print('\nEpoch %d' % (epoch))
             print('Training ===>loss: ', epoch_loss/((i+1)*num))
             print('Test ===>loss: ', test_loss)
+    
+    
     print('***** Training feature %d *****'%(feature_to_predict))
     print('Test loss: ', test_loss)
 

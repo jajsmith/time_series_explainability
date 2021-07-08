@@ -37,13 +37,14 @@ def kl_multilabel(p1,p2,reduction='none'):
 
 
 class FITExplainer:
-    def __init__(self, model, generator=None,activation=torch.nn.Softmax(-1),n_classes=2, ft_dim_last=False):
+    def __init__(self, model, generator=None, activation=torch.nn.Softmax(-1), n_classes=2, ft_dim_last=False, n_samples=10):
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.generator = generator
         self.base_model = model.to(self.device).eval()
         self.activation = activation
         self.n_classes = n_classes
         self.ft_dim_last = ft_dim_last
+        self.n_samples = n_samples
 
     def model_predict(self, x):
         if self.ft_dim_last:
@@ -51,7 +52,7 @@ class FITExplainer:
             x = x.permute(0, 2, 1)
         return self.base_model(x)
 
-    def fit_generator(self, generator_model, train_loader, test_loader, n_epochs=300,cv=0):
+    def fit_generator(self, generator_model, train_loader, test_loader, n_epochs=300, cv=0):
         train_joint_feature_generator(generator_model, train_loader, test_loader, generator_type='joint_generator',
                                       n_epochs=n_epochs, lr=0.001, weight_decay=0, cv=cv, ft_dim_last=self.ft_dim_last)
         self.generator = generator_model.to(self.device)
@@ -112,6 +113,7 @@ class FITExplainer:
                     elif distance_metric=='RHS':
                         div = torch.sum(torch.nn.KLDivLoss(reduction='none')(torch.log(y_hat_t), p_y_t), -1)
                         div_all.append(div.cpu().detach().numpy())
+                
                 E_div = np.mean(np.array(div_all),axis=0)
                 if distance_metric =='kl':
                     # score[:, i, t] = E_div
@@ -749,7 +751,7 @@ class GradExplainer:
 
 
 class IFITExplainer:
-    def __init__(self, model, activation=None):
+    def __init__(self, model, train_loader, test_loader, name, train, activation=None):
         self.model = model
         self.activation = activation
 
@@ -758,16 +760,20 @@ class IFITExplainer:
 
 
 class WFITExplainer:
-    def __init__(self, model, N, inverse, train_loader, test_loader, name, activation=None, train_generators=True):
+    def __init__(self, model, N, inverse, train_loader, test_loader, name, activation=None, n_samples=3, train_generators=True, cv=0):
         self.model = model
         self.activation = activation
         self.N = N
         self.inverse = inverse
-        self.generators = get_wfit_generators(train_loader, test_loader, N, name, train_generators)
+        self.n_samples = n_samples
+        self.cv = cv
+        
+        self.generators = get_wfit_generators(train_loader, test_loader, N, name, train_generators, cv=cv)
+
 
     def attribute(self, x, y):
         return wfit_attribute(x, self.model, self.N, activation=self.activation, collapse=True, inverse=self.inverse,
-                              generators=self.generators)
+                              generators=self.generators, n_samples=self.n_samples, cv=self.cv)
 
 
 class MockExplainer:
