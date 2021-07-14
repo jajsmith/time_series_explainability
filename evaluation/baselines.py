@@ -264,7 +264,7 @@ def run_baseline(explainer_name='fit',
                         train_model_rt_binary(model, train_loader, valid_loader, optimizer=optimizer, n_epochs=250,
                                    device=device, experiment='model', data=data, cv=cv)
 
-            model.load_state_dict(torch.load(os.path.join('./ckpt/%s/%s_%d.pt' % (data, 'model', cv)), map_location=torch.device('cpu')))
+            model.load_state_dict(torch.load(os.path.join('./ckpt/%s/%s_%d.pt' % (data, 'model', cv))))
             
             if skip_explanation:
                 if model:
@@ -413,7 +413,8 @@ def run_baseline(explainer_name='fit',
     for x, y in test_loader:
         xs.append(x)
         ys.append(y)
-        model.train()
+
+        #model.train()
         model.to(device)
         x = x.to(device)
         y = y.to(device)
